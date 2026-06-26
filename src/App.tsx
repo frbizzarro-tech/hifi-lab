@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import { AuthScreen } from './components/AuthScreen'
 import { ConfigMissing } from './components/ConfigMissing'
 import { Dashboard } from './components/Dashboard'
 import { LessonView } from './components/LessonView'
-import { allLessons } from './data/course'
+import { PasswordUpdateScreen } from './components/PasswordUpdateScreen'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { levelFromXp, totalXp, xpForLesson } from './lib/xp'
 import type { Lesson, LessonProgress } from './types/course'
@@ -14,6 +14,7 @@ function App() {
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({})
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null)
   const [loading, setLoading] = useState(true)
+  const [passwordRecoveryMode, setPasswordRecoveryMode] = useState(false)
 
   const user = session?.user ?? null
 
@@ -58,12 +59,21 @@ function App() {
       }
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, nextSession) => {
       setSession(nextSession)
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setPasswordRecoveryMode(true)
+      }
+
+      if (event === 'SIGNED_OUT') {
+        setPasswordRecoveryMode(false)
+        setActiveLesson(null)
+        setProgress({})
+      }
+
       if (nextSession?.user) {
         void loadProgress(nextSession.user)
-      } else {
-        setProgress({})
       }
     })
 
@@ -157,6 +167,7 @@ function App() {
   async function logout() {
     if (!supabase) return
     await supabase.auth.signOut()
+    setPasswordRecoveryMode(false)
     setActiveLesson(null)
     setProgress({})
   }
@@ -176,6 +187,10 @@ function App() {
         </div>
       </main>
     )
+  }
+
+  if (session && passwordRecoveryMode) {
+    return <PasswordUpdateScreen onDone={() => setPasswordRecoveryMode(false)} />
   }
 
   if (!session || !user) return <AuthScreen />
