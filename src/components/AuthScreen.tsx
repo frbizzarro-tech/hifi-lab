@@ -285,5 +285,3 @@ export function AuthScreen() {
     </main>
   )
 }
-
-}
